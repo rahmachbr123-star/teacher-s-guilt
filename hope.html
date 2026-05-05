@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>The Teacher's Debt: Final Chapter</title>
+  <style>
+    :root { --sanity: 100%; }
+    body { 
+      color: #e0e0e0; font-family: 'Courier New', Courier, monospace; 
+      background: #000; margin: 0; overflow: hidden; 
+      display: flex; flex-direction: column; height: 100vh; 
+    }
+    #bg-layer { 
+      position: fixed; inset: 0; background-size: cover; background-position: center;
+      z-index: -2; filter: brightness(0.3) contrast(1.1); transition: 2s opacity ease; opacity: 0; 
+    }
+    #vignette { position: fixed; inset: 0; background: radial-gradient(circle, transparent 40%, black 140%); pointer-events: none; z-index: -1; }
+    #stats-ui { position: fixed; top: 20px; left: 20px; width: 200px; z-index: 10; }
+    #sanity-fill { width: var(--sanity); height: 8px; background: #a00; border: 1px solid #444; transition: 1s; }
+    #text-area { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center; }
+    #spirit-voice { color: #88ffff; font-style: italic; font-size: 20px; margin-bottom: 20px; min-height: 25px; text-shadow: 0 0 10px rgba(0,255,255,0.5); }
+    #text { font-size: 21px; line-height: 1.8; max-width: 850px; min-height: 220px; }
+    #ui-container { background: rgba(10,10,10,0.9); padding: 40px; border-top: 2px solid #222; display: flex; flex-direction: column; align-items: center; min-height: 200px; }
+    #choices { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center; opacity: 0; transition: opacity 1s ease; }
+    button { padding: 15px 30px; background: #111; color: #ccc; border: 1px solid #444; cursor: pointer; font-family: inherit; text-transform: uppercase; letter-spacing: 2px; }
+    button:hover { background: #500; border-color: #f00; color: #fff; }
+    #journal-overlay { position: fixed; inset: 40px; background: rgba(15,15,15,0.95); border: 2px solid #333; display: none; flex-direction: column; padding: 30px; z-index: 100; }
+  </style>
+</head>
+<body>
+
+<div id="bg-layer"></div>
+<div id="vignette"></div>
+
+<div id="stats-ui">
+    <div style="font-size:10px; color:#666; margin-bottom:5px; letter-spacing: 2px;">YOUR GUILT</div>
+    <div id="sanity-fill"></div>
+</div>
+
+<div id="text-area">
+    <div id="spirit-voice"></div>
+    <div id="text"></div>
+</div>
+
+<div id="ui-container">
+    <div id="choices"></div>
+    <button onclick="toggleJournal(true)" style="margin-top:25px; color:#d4af37; border-color:#d4af37; background:none; font-size:11px; cursor:pointer;">[ CASE FILE ]</button>
+</div>
+
+<div id="journal-overlay">
+    <h2 style="color: #d4af37;">EVIDENCE LOG</h2>
+    <div id="journal-content" style="flex:1; overflow-y:auto; color:#999; font-size:18px;"></div>
+    <button onclick="toggleJournal(false)">CLOSE</button>
+</div>
+
+<script>
+// --- AUDIO CONFIG ---
+const clickSound = new Audio(encodeURI('click sound.mp3'));
+const bgMusic = new Audio(encodeURI('music of the game.mp3'));
+bgMusic.loop = true;
+bgMusic.volume = 0.4;
+let musicStarted = false;
+
+function playClick() {
+    clickSound.currentTime = 0;
+    clickSound.play().catch(() => {});
+}
+
+function startMusic() {
+    if (!musicStarted) {
+        bgMusic.play().catch(() => console.log("Music waiting for interaction..."));
+        musicStarted = true;
+    }
+}
+
+// --- GAME DATA ---
+let gameState = { knife: false, diary: false, sanity: 100 };
+const textEl = document.getElementById("text");
+const spiritEl = document.getElementById("spirit-voice");
+const choicesEl = document.getElementById("choices");
+const journalContent = document.getElementById("journal-content");
+const bgLayer = document.getElementById("bg-layer");
+
+let typewriterInterval;
+
+function typeWriter(message, targetEl, speed = 30, callback) {
+    clearInterval(typewriterInterval);
+    targetEl.innerHTML = "";
+    let i = 0;
+    typewriterInterval = setInterval(() => {
+        if (message.charAt(i) === "<") {
+            let tag = "";
+            while (message.charAt(i) !== ">") { tag += message.charAt(i); i++; }
+            tag += ">"; targetEl.innerHTML += tag; i++;
+        }
+        targetEl.innerHTML += message.charAt(i);
+        i++;
+        if (i >= message.length) {
+            clearInterval(typewriterInterval);
+            if (callback) callback();
+        }
+    }, speed);
+}
+
+function updateSanity(amt) {
+    gameState.sanity = Math.max(0, gameState.sanity + amt);
+    document.documentElement.style.setProperty('--sanity', gameState.sanity + '%');
+    if(gameState.sanity <= 20) bgLayer.style.filter = "invert(1) contrast(2) brightness(0.5)";
+    if(gameState.sanity <= 0) showScene("insanity");
+}
+
+function addEvidence(msg) {
+    journalContent.innerHTML += `<p style="margin:5px 0;">> ${msg}</p>`;
+}
+
+function toggleJournal(show) {
+    playClick();
+    document.getElementById("journal-overlay").style.display = show ? "flex" : "none";
+}
+
+// --- SCENES (Using Local Files) ---
+const scenes = {
+    start: {
+        bg: "gate.jpg",
+        text: "The iron gates of Blackwood Manor groan. You are a teacher who abandoned his post ten years ago. The children needed a protector; they got a witness who chose silence.",
+        action: () => {
+            gameState = { knife: false, diary: false, sanity: 100 };
+            journalContent.innerHTML = "";
+        },
+        choices: [{ text: "Step into the past", next: "hallway" }]
+    },
+    hallway: {
+        bg: "hallway.jpg",
+        text: "The hallway is a throat of rotting velvet. You can still hear the phantom echoes of Leo's sneakers on these boards. He used to run to your classroom for safety.",
+        spirit: "...you watched me bleed and called it 'growing pains'...",
+        choices: [
+            { text: "Go to Bedroom", next: "bedroom" },
+            { text: "Go to Kitchen", next: "kitchen" }
+        ]
+    },
+    bedroom: {
+        bg: "bedroom.jpg",
+        text: "The room smells of stale medicine and dust. A loose floorboard near the bed hides the boy's only voice.",
+        choices: [
+            { 
+                text: "Search Floorboard", 
+                showIf: () => !gameState.diary,
+                action: () => {
+                    gameState.diary = true;
+                    addEvidence("DIARY: 'Teacher looked at my bruises and said nothing.'");
+                    updateSanity(-15);
+                    typeWriter("You find the diary. The pages are stained with old tears and chemical spills. It's a record of a childhood spent in a cage.", textEl, 30, () => {
+                        spiritEl.textContent = "...now you finally want to read my words?...";
+                        renderButtons(scenes.bedroom);
+                        choicesEl.style.opacity = "1";
+                    });
+                }
+            },
+            { text: "Return to Hallway", next: "hallway" }
+        ]
+    },
+    kitchen: {
+        bg: "kitchen.jpg",
+        text: "The kitchen is where the 'medicine' was mixed. The basement door stands like a tombstone in the corner.",
+        choices: [
+            { 
+                text: "Search Sink", 
+                showIf: () => !gameState.knife,
+                action: () => {
+                    gameState.knife = true;
+                    addEvidence("KNIFE: Wedged the basement door shut.");
+                    updateSanity(-15);
+                    typeWriter("You find a jagged, rusty knife. It wasn't for cooking; it was used to wedge the basement door shut from the outside.", textEl, 30, () => {
+                        spiritEl.textContent = "...careful... it still bites...";
+                        renderButtons(scenes.kitchen);
+                        choicesEl.style.opacity = "1";
+                    });
+                }
+            },
+            { 
+                text: "Break the Chains", 
+                action: () => {
+                    if(gameState.knife && gameState.diary) showScene("basement");
+                    else {
+                        typeWriter("The chains won't move. You haven't faced the depth of the truth yet.", textEl, 30, () => {
+                            spiritEl.textContent = "...you're still protecting yourself, aren't you?...";
+                            renderButtons(scenes.kitchen);
+                            choicesEl.style.opacity = "1";
+                        });
+                    }
+                }
+            },
+            { text: "Return to Hallway", next: "hallway" }
+        ]
+    },
+    basement: {
+        bg: "basement.jpg",
+        text: "The door falls. Sarah is curled in a nest of old newspapers. She is skeletal, her hair matted to her skull with dried blood. She doesn't look up; she only whimpers, shielding her eyes as if light itself is a lash.",
+        spirit: "...she's been here for ten years, Teacher. While you slept in a clean bed...",
+        choices: [{ text: "Face the Full Truth", next: "confrontation" }]
+    },
+    confrontation: {
+        bg: "basement.jpg",
+        text: "Leo’s spirit manifests. 'He broke my ribs in the garden while you watched from the school gate. Mother forced that bitter medicine down my throat until I couldn't feel my legs. I begged you for help. You left us here. I died trying to shield Sarah, and she... she became his toy in this cellar because NOBODY CAME!'",
+        choices: [
+            { text: "Offer your life for hers", action: () => updateSanity(-100), next: "horror_ending" },
+            { text: "Live with the blood on your hands", action: () => updateSanity(-60), next: "eternal_guilt" }
+        ]
+    },
+    horror_ending: {
+        bg: "death.jpg",
+        text: "You give Sarah the knife and the diary. As she crawls toward the light, the cellar door slams shut. Leo's cold hands wrap around your throat. You feel the ribs snap, the bitter medicine filling your mouth. You are the new prisoner of Blackwood.",
+        spirit: "...now you know how it feels to be forgotten...",
+        choices: [{ text: "Restart", next: "start" }]
+    },
+    eternal_guilt: {
+        bg: "prison.jpg",
+        text: "You carry Sarah out, but she never speaks again. You spend your life in a prison cell, but every night, you feel the 'bitter medicine' on your tongue. Every shadow in your cell is Leo, watching you, making sure you never forget.",
+        spirit: "...you get to live. That is your true punishment...",
+        choices: [{ text: "Restart", next: "start" }]
+    },
+    insanity: {
+        bg: "death.jpg",
+        text: "The 'bitter medicine' fills your mind. You begin to scream, but no sound comes out. You realize... you never actually left this manor. You died here ten years ago.",
+        choices: [{ text: "Try again", next: "start" }]
+    }
+};
+
+function showScene(key) {
+    const scene = scenes[key];
+    if (scene.bg) {
+        bgLayer.style.opacity = '0';
+        setTimeout(() => {
+            bgLayer.style.backgroundImage = `url('${scene.bg}')`;
+            bgLayer.style.opacity = '1';
+        }, 300);
+    }
+    spiritEl.textContent = "";
+    choicesEl.style.opacity = "0";
+    choicesEl.innerHTML = "";
+    let speed = (key === 'basement' || key === 'confrontation') ? 60 : 30;
+    typeWriter(scene.text, textEl, speed, () => {
+        setTimeout(() => {
+            spiritEl.textContent = scene.spirit || "";
+            renderButtons(scene);
+            choicesEl.style.opacity = "1";
+        }, 1000);
+    });
+    if(scene.action) scene.action();
+}
+
+function renderButtons(scene) {
+    choicesEl.innerHTML = "";
+    scene.choices.forEach(choice => {
+        if (choice.showIf && !choice.showIf()) return;
+        const btn = document.createElement("button");
+        btn.textContent = choice.text;
+        btn.onclick = () => {
+            playClick();
+            startMusic();
+            if(choice.action) choice.action();
+            if(choice.next) showScene(choice.next);
+            else renderButtons(scene);
+        };
+        choicesEl.appendChild(btn);
+    });
+}
+
+showScene("start");
+</script>
+</body>
+</html>
